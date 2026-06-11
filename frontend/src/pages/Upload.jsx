@@ -1,43 +1,175 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader.jsx';
+import Card from '../components/ui/Card.jsx';
+import Button from '../components/ui/Button.jsx';
+import Loader from '../components/ui/Loader.jsx';
+import { paperService } from '../services/paperService.js';
+import { MAX_FILE_SIZE } from '../utils/constants.js';
 
 function Upload() {
   const [file, setFile] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  const validateFile = (f) => {
+    if (!f) return 'No file selected.';
+    if (f.type !== 'application/pdf') return 'Only PDF files are allowed.';
+    if (f.size > MAX_FILE_SIZE) return 'File exceeds the 50MB size limit.';
+    return null;
+  };
+
+  const handleFileSelect = (f) => {
+    setError(null);
+    setResult(null);
+    const validationError = validateFile(f);
+    if (validationError) {
+      setError(validationError);
+      setFile(null);
+      return;
+    }
+    setFile(f);
+  };
+
+  const handleDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await paperService.uploadPaper(file);
+      if (res.success) {
+        setResult(res.data);
+        setFile(null);
+      } else {
+        setError(res.error || 'Upload failed.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'An unexpected error occurred during upload.');
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto w-full space-y-6">
-      <div className="border-b border-slate-800 pb-5">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Upload Research Papers</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Upload PDF files (up to 50MB) for vector store ingestion, text chunking, and database mapping.
-        </p>
-      </div>
+    <div className="page-container">
+      <PageHeader
+        icon={UploadIcon}
+        title="Upload Research Papers"
+        subtitle="Upload PDF files for vector store ingestion, text chunking, and AI-powered analysis. Maximum 50MB per file."
+      />
 
-      <div className="flex justify-center rounded-lg border border-dashed border-slate-700 px-6 py-10 bg-slate-900">
-        <div className="text-center">
-          <svg className="mx-auto h-12 w-12 text-slate-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 00-6.75 6.75v5.19a.75.75 0 01-.22.53l-1.015 1.014A1.75 1.75 0 003.75 20.25h16.5a1.75 1.75 0 001.235-2.986l-1.015-1.014a.75.75 0 01-.22-.53V10.5a6.75 6.75 0 00-6.75-6.75h-3zm1.5 4.5a.75.75 0 00-1.5 0v3.75a.75.75 0 001.5 0V8.25z" clipRule="evenodd" />
-          </svg>
-          <div className="mt-4 flex text-sm leading-6 text-slate-300">
-            <label htmlFor="file-upload" className="relative cursor-pointer rounded-md bg-slate-850 font-semibold text-brand-400 focus-within:outline-none hover:text-brand-300">
-              <span>Upload a file</span>
-              <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={handleFileChange} />
-            </label>
-            <p className="pl-1">or drag and drop</p>
+      {/* Dropzone */}
+      <Card>
+        <div
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-16 transition-all duration-300 ${
+            dragActive
+              ? 'border-brand-400 bg-brand-500/5 shadow-glow-sm'
+              : 'border-slate-700/60 bg-slate-900/40 hover:border-slate-600'
+          }`}
+        >
+          <div className={`p-4 rounded-2xl mb-4 transition-colors ${dragActive ? 'bg-brand-500/15' : 'bg-slate-800/60'}`}>
+            <UploadIcon className={`h-10 w-10 transition-colors ${dragActive ? 'text-brand-400' : 'text-slate-500'}`} />
           </div>
-          <p className="text-xs leading-5 text-slate-400">PDF up to 50MB</p>
-          {file && (
-            <p className="mt-4 text-sm text-green-400 font-medium">
-              Selected: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-            </p>
-          )}
+          <div className="text-center">
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <span className="text-sm font-semibold text-brand-400 hover:text-brand-300 transition-colors">
+                Choose a file
+              </span>
+              <span className="text-sm text-slate-400"> or drag and drop</span>
+              <input
+                id="file-upload"
+                type="file"
+                className="sr-only"
+                accept=".pdf"
+                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              />
+            </label>
+            <p className="mt-2 text-xs text-slate-500">PDF only • up to 50MB</p>
+          </div>
         </div>
-      </div>
+      </Card>
+
+      {/* Selected File */}
+      {file && !uploading && (
+        <Card className="animate-slide-up">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-brand-500/10">
+                <FileText className="h-5 w-5 text-brand-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">{file.name}</p>
+                <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => { setFile(null); setError(null); }} variant="ghost" size="sm" icon={X}>
+                Remove
+              </Button>
+              <Button onClick={handleUpload} icon={UploadIcon}>
+                Upload & Process
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {uploading && (
+        <Card className="animate-fade-in">
+          <Loader text="Uploading and processing PDF... Extracting chunks and generating embeddings." />
+        </Card>
+      )}
+
+      {/* Error */}
+      {error && (
+        <Card className="animate-slide-up border-red-500/30">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
+            <p className="text-sm text-red-300">{error}</p>
+          </div>
+        </Card>
+      )}
+
+      {/* Success Result */}
+      {result && (
+        <Card className="animate-slide-up border-emerald-500/30">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-accent-emerald shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-accent-emerald">Upload Successful</p>
+              <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-slate-400">
+                <span>Original File:</span><span className="text-slate-200">{result.original_filename}</span>
+                <span>Secure Name:</span><span className="text-slate-200 font-mono">{result.saved_filename}</span>
+                <span>File Size:</span><span className="text-slate-200">{(result.size_bytes / (1024 * 1024)).toFixed(2)} MB</span>
+                <span>Chunks Created:</span><span className="text-slate-200">{result.chunks_count}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

@@ -1,9 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 selection:bg-brand-500 selection:text-white;
+    @apply bg-surface text-slate-100 font-sans antialiased selection:bg-brand-500/40 selection:text-white;
+  }
+
+  /* Refined scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full hover:bg-slate-600;
+  }
+
+  /* Ensure smooth transitions */
+  * {
+    @apply scroll-smooth;
+  }
+}
+
+@layer components {
+  /* Glass card */
+  .glass-card {
+    @apply bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-card;
+  }
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:shadow-card-hover hover:border-brand-500/30 hover:-translate-y-0.5;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-400 via-brand-300 to-accent-cyan;
+  }
+
+  /* Shimmer skeleton */
+  .skeleton {
+    @apply relative overflow-hidden bg-slate-800 rounded-lg;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 animate-shimmer;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+    background-size: 200% 100%;
+  }
+
+  /* Glow dot indicator */
+  .glow-dot {
+    @apply relative;
+  }
+  .glow-dot::before {
+    content: '';
+    @apply absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-brand-400;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+  }
+
+  /* Input field */
+  .input-field {
+    @apply w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-100
+           placeholder-slate-500 transition-all duration-200
+           focus:outline-none focus:border-brand-500/60 focus:ring-1 focus:ring-brand-500/30 focus:bg-slate-900;
+  }
+
+  /* Page container */
+  .page-container {
+    @apply p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 animate-fade-in;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 }

@@ -1,4 +1,4 @@
-# ScholarAssist Directory Generation Script (PowerShell)
+a# ScholarAssist Directory Generation Script (PowerShell)
 # Run this script to recreate the production-grade folder layout and base files.
 
 Write-Host "Creating ScholarAssist folder structure..." -ForegroundColor Cyan
