@@ -24,7 +24,7 @@ function App() {
           <ChatProvider>
             <div className="h-screen flex overflow-hidden bg-surface font-sans">
               <Sidebar />
-              <main className="flex-1 flex flex-col overflow-y-auto">
+              <main className="flex-1 flex flex-col overflow-y-auto pt-14 lg:pt-0">
                 <AppRoutes />
               </main>
             </div>

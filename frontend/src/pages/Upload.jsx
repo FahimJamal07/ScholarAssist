@@ -1,175 +1,168 @@
-import React, { useState, useCallback } from 'react';
-import { Upload as UploadIcon, FileText, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import {
+  Upload as UploadIcon,
+  Trash2,
+  CheckCircle2,
+  Rocket,
+} from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import Card from '../components/ui/Card.jsx';
 import Button from '../components/ui/Button.jsx';
-import Loader from '../components/ui/Loader.jsx';
-import { paperService } from '../services/paperService.js';
-import { MAX_FILE_SIZE } from '../utils/constants.js';
+import UploadDropzone from '../components/upload/UploadDropzone.jsx';
+import FileQueue from '../components/upload/FileQueue.jsx';
+import UploadStats from '../components/upload/UploadStats.jsx';
+import UploadGuidelines from '../components/upload/UploadGuidelines.jsx';
+import { useUpload, UPLOAD_STATUS } from '../hooks/useUpload.js';
 
+/**
+ * Upload — Full-featured PDF upload page with drag-and-drop, multi-file queue,
+ * real-time progress tracking, validation, retry, and backend integration.
+ *
+ * Architecture:
+ * - useUpload hook: manages queue state, validation, upload logic
+ * - UploadDropzone: drag-and-drop / click-to-browse file selection
+ * - FileQueue: renders individual file entries with progress bars
+ * - UploadStats: summary bar with queue counts
+ * - UploadGuidelines: informational sidebar about the processing pipeline
+ *
+ * Following instructions.md:
+ * - PDF only (Rule 20)
+ * - Max 50MB (Rule 20)
+ * - MIME type + extension validation (Rule 20)
+ * - Modular component architecture (Rule 1)
+ * - Reusable components (Rule 2)
+ * - No hardcoded values — uses constants.js (Rule 3)
+ * - Centralized API via paperService (Rule 14)
+ */
 function Upload() {
-  const [file, setFile] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const {
+    queue,
+    stats,
+    isUploading,
+    addFiles,
+    uploadAll,
+    retryUpload,
+    removeFile,
+    clearCompleted,
+    clearAll,
+  } = useUpload();
 
-  const validateFile = (f) => {
-    if (!f) return 'No file selected.';
-    if (f.type !== 'application/pdf') return 'Only PDF files are allowed.';
-    if (f.size > MAX_FILE_SIZE) return 'File exceeds the 50MB size limit.';
-    return null;
-  };
-
-  const handleFileSelect = (f) => {
-    setError(null);
-    setResult(null);
-    const validationError = validateFile(f);
-    if (validationError) {
-      setError(validationError);
-      setFile(null);
-      return;
-    }
-    setFile(f);
-  };
-
-  const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
-    else if (e.type === 'dragleave') setDragActive(false);
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
-    }
-  }, []);
-
-  const handleUpload = async () => {
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const res = await paperService.uploadPaper(file);
-      if (res.success) {
-        setResult(res.data);
-        setFile(null);
-      } else {
-        setError(res.error || 'Upload failed.');
-      }
-    } catch (err) {
-      setError(err.response?.data?.detail || 'An unexpected error occurred during upload.');
-    } finally {
-      setUploading(false);
-    }
-  };
+  const hasPendingFiles = stats.pending > 0;
+  const hasCompletedFiles = stats.completed > 0;
+  const hasFiles = stats.total > 0;
 
   return (
     <div className="page-container">
+      {/* Page Header */}
       <PageHeader
         icon={UploadIcon}
         title="Upload Research Papers"
-        subtitle="Upload PDF files for vector store ingestion, text chunking, and AI-powered analysis. Maximum 50MB per file."
+        subtitle="Upload PDF files for vector store ingestion, text chunking, and AI-powered analysis. Maximum 50 MB per file."
+        actions={
+          hasFiles && (
+            <div className="flex items-center gap-2">
+              {hasCompletedFiles && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={CheckCircle2}
+                  onClick={clearCompleted}
+                >
+                  Clear Completed
+                </Button>
+              )}
+              {stats.total > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Trash2}
+                  onClick={clearAll}
+                  className="text-rose-400 hover:text-rose-300"
+                >
+                  Clear All
+                </Button>
+              )}
+            </div>
+          )
+        }
       />
 
-      {/* Dropzone */}
-      <Card>
-        <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-16 transition-all duration-300 ${
-            dragActive
-              ? 'border-brand-400 bg-brand-500/5 shadow-glow-sm'
-              : 'border-slate-700/60 bg-slate-900/40 hover:border-slate-600'
-          }`}
-        >
-          <div className={`p-4 rounded-2xl mb-4 transition-colors ${dragActive ? 'bg-brand-500/15' : 'bg-slate-800/60'}`}>
-            <UploadIcon className={`h-10 w-10 transition-colors ${dragActive ? 'text-brand-400' : 'text-slate-500'}`} />
-          </div>
-          <div className="text-center">
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <span className="text-sm font-semibold text-brand-400 hover:text-brand-300 transition-colors">
-                Choose a file
-              </span>
-              <span className="text-sm text-slate-400"> or drag and drop</span>
-              <input
-                id="file-upload"
-                type="file"
-                className="sr-only"
-                accept=".pdf"
-                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-              />
-            </label>
-            <p className="mt-2 text-xs text-slate-500">PDF only • up to 50MB</p>
-          </div>
+      {/* Two-column layout: main upload area + guidelines sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main upload area (wider) */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Dropzone */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <UploadDropzone onFilesSelected={addFiles} disabled={isUploading} />
+          </motion.div>
+
+          {/* Stats bar + Upload button */}
+          {hasFiles && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+            >
+              <UploadStats stats={stats} />
+
+              {hasPendingFiles && (
+                <Button
+                  onClick={uploadAll}
+                  loading={isUploading}
+                  icon={Rocket}
+                  size="md"
+                  className="shrink-0"
+                >
+                  {isUploading
+                    ? `Uploading (${stats.uploading}/${stats.total})`
+                    : `Upload ${stats.pending} File${stats.pending !== 1 ? 's' : ''}`}
+                </Button>
+              )}
+            </motion.div>
+          )}
+
+          {/* File queue */}
+          <FileQueue
+            queue={queue}
+            onRemove={removeFile}
+            onRetry={retryUpload}
+          />
+
+          {/* Success summary when all completed */}
+          {hasFiles && stats.pending === 0 && stats.uploading === 0 && hasCompletedFiles && stats.failed === 0 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-card p-5 border-emerald-500/20"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-400">
+                    All uploads completed successfully
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {stats.completed} paper{stats.completed !== 1 ? 's' : ''} indexed and ready for
+                    AI analysis. You can now use Chat, Compare, or Literature Review.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
-      </Card>
 
-      {/* Selected File */}
-      {file && !uploading && (
-        <Card className="animate-slide-up">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-brand-500/10">
-                <FileText className="h-5 w-5 text-brand-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">{file.name}</p>
-                <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => { setFile(null); setError(null); }} variant="ghost" size="sm" icon={X}>
-                Remove
-              </Button>
-              <Button onClick={handleUpload} icon={UploadIcon}>
-                Upload & Process
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Loading State */}
-      {uploading && (
-        <Card className="animate-fade-in">
-          <Loader text="Uploading and processing PDF... Extracting chunks and generating embeddings." />
-        </Card>
-      )}
-
-      {/* Error */}
-      {error && (
-        <Card className="animate-slide-up border-red-500/30">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-            <p className="text-sm text-red-300">{error}</p>
-          </div>
-        </Card>
-      )}
-
-      {/* Success Result */}
-      {result && (
-        <Card className="animate-slide-up border-emerald-500/30">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-accent-emerald shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-accent-emerald">Upload Successful</p>
-              <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-slate-400">
-                <span>Original File:</span><span className="text-slate-200">{result.original_filename}</span>
-                <span>Secure Name:</span><span className="text-slate-200 font-mono">{result.saved_filename}</span>
-                <span>File Size:</span><span className="text-slate-200">{(result.size_bytes / (1024 * 1024)).toFixed(2)} MB</span>
-                <span>Chunks Created:</span><span className="text-slate-200">{result.chunks_count}</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
+        {/* Guidelines sidebar */}
+        <div className="lg:col-span-1">
+          <UploadGuidelines />
+        </div>
+      </div>
     </div>
   );
 }

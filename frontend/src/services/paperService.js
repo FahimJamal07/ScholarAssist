@@ -1,13 +1,24 @@
 import api from './api';
 
 export const paperService = {
-  uploadPaper: async (file) => {
+  /**
+   * Uploads a PDF file to the backend for processing.
+   *
+   * @param {File} file - The PDF file to upload
+   * @param {object} options - Optional upload configuration
+   * @param {Function} options.onUploadProgress - Axios progress callback
+   * @param {AbortSignal} options.signal - AbortController signal for cancellation
+   * @returns {Promise<object>} API response
+   */
+  uploadPaper: async (file, { onUploadProgress, signal } = {}) => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await api.post('/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress,
+      signal,
     });
     return response.data;
   },
