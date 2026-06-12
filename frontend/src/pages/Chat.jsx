@@ -1,151 +1,151 @@
-import React, { useState, useRef, useEffect, useContext } from 'react';
-import { MessageSquareText, Send, BookOpen, Loader2 } from 'lucide-react';
-import PageHeader from '../components/ui/PageHeader.jsx';
-import Card from '../components/ui/Card.jsx';
-import { ChatContext } from '../context/ChatContext.jsx';
-import api from '../services/api.js';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import ChatHeader from '../components/chat/ChatHeader.jsx';
+import ChatBubble from '../components/chat/ChatBubble.jsx';
+import ChatInput from '../components/chat/ChatInput.jsx';
+import ChatEmptyState from '../components/chat/ChatEmptyState.jsx';
+import TypingIndicator from '../components/chat/TypingIndicator.jsx';
+import ScrollToBottom from '../components/chat/ScrollToBottom.jsx';
+import { useChat } from '../hooks/useChat.js';
 
+/**
+ * Chat — Full-featured AI research chat page with message history,
+ * markdown rendering, typing animations, citations, scroll management,
+ * and backend integration.
+ *
+ * Architecture (per instructions.md):
+ * - useChat hook: all chat state + API logic (Rule 1, 14)
+ * - ChatBubble: markdown rendering + citations (Rule 2)
+ * - ChatInput: auto-resize textarea + shortcuts (Rule 2)
+ * - ChatHeader: compact header with model badges (Rule 2)
+ * - TypingIndicator: animated loading state (Rule 12)
+ * - ScrollToBottom: scroll management (Rule 12)
+ * - No direct API calls from components (Rule 14, 24)
+ * - No hardcoded values (Rule 3)
+ *
+ * The chat follows the RAG flow (Rule 18):
+ * User Query → Vector Retrieval → Context Building → LLM Generation
+ */
 function Chat() {
-  const { chatHistory, setChatHistory } = useContext(ChatContext);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const {
+    messages,
+    isTyping,
+    messageCount,
+    sendMessage,
+    cancelRequest,
+    clearHistory,
+    initializeChat,
+  } = useChat();
+
+  const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  /**
+   * Initialize chat with welcome message on mount.
+   */
   useEffect(() => {
-    scrollToBottom();
-  }, [chatHistory]);
+    initializeChat();
+  }, [initializeChat]);
 
-  // Initialize with welcome message if empty
+  /**
+   * Scroll to bottom when new messages arrive (if user is near bottom).
+   */
   useEffect(() => {
-    if (chatHistory.length === 0) {
-      setChatHistory([
-        {
-          id: 'welcome',
-          role: 'assistant',
-          content: 'Hello! I can answer questions about your uploaded research papers using RAG-powered retrieval. Ask me anything.',
-          citations: [],
-        },
-      ]);
+    if (isAtBottom) {
+      scrollToBottom();
     }
+  }, [messages, isTyping, isAtBottom]);
+
+  /**
+   * Smooth scroll to the bottom of the messages container.
+   */
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    const query = input.trim();
-    if (!query || loading) return;
+  /**
+   * Handle scroll events to show/hide the scroll-to-bottom button
+   * and track whether user is near the bottom.
+   */
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
 
-    const userMsg = { id: Date.now().toString(), role: 'user', content: query, citations: [] };
-    setChatHistory((prev) => [...prev, userMsg]);
-    setInput('');
-    setLoading(true);
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const threshold = 120;
 
-    try {
-      const res = await api.post('/chat', { message: query, paper_ids: [] });
-      if (res.data.success) {
-        const data = res.data.data;
-        const assistantMsg = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.response?.answer || data.response || 'No response generated.',
-          citations: data.response?.citations || [],
-        };
-        setChatHistory((prev) => [...prev, assistantMsg]);
-      } else {
-        setChatHistory((prev) => [
-          ...prev,
-          { id: (Date.now() + 1).toString(), role: 'assistant', content: `Error: ${res.data.error}`, citations: [] },
-        ]);
-      }
-    } catch (err) {
-      setChatHistory((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: 'An error occurred. Please try again.', citations: [] },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setShowScrollBtn(distanceFromBottom > threshold);
+    setIsAtBottom(distanceFromBottom <= threshold);
+  }, []);
+
+  /**
+   * Handle suggestion click from empty state.
+   */
+  const handleSuggestionClick = useCallback(
+    (text) => {
+      sendMessage(text);
+    },
+    [sendMessage]
+  );
+
+  const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-6 md:px-8 pt-6 md:pt-8">
-        <PageHeader
-          icon={MessageSquareText}
-          title="Chat with Research Papers"
-          subtitle="RAG-powered Q&A grounded in your uploaded literature. Powered by Gemini & vector retrieval."
-        />
-      </div>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <ChatHeader
+        messageCount={messageCount}
+        onClearHistory={clearHistory}
+        isTyping={isTyping}
+      />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 md:px-8 py-4 space-y-4">
-        {chatHistory.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}
-          >
-            <div
-              className={`max-w-2xl rounded-2xl px-4 py-3 ${
-                msg.role === 'user'
-                  ? 'bg-brand-600/80 text-white rounded-br-md'
-                  : 'glass-card text-slate-200 rounded-bl-md'
-              }`}
-            >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+      {/* Messages area */}
+      {hasMessages ? (
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto relative"
+        >
+          <div className="px-6 md:px-8 py-4 space-y-5 max-w-4xl mx-auto w-full">
+            {messages.map((msg, idx) => (
+              <ChatBubble
+                key={msg.id}
+                message={msg}
+                isLatest={idx === messages.length - 1}
+                index={idx}
+              />
+            ))}
 
-              {/* Citations */}
-              {msg.citations && msg.citations.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Sources</p>
-                  {msg.citations.map((cite) => (
-                    <div key={cite.citation_index} className="flex items-start gap-2 text-xs text-slate-400">
-                      <BookOpen className="h-3 w-3 mt-0.5 shrink-0 text-brand-400" />
-                      <span>
-                        <span className="text-brand-300 font-medium">[{cite.citation_index}]</span>{' '}
-                        {cite.text_snippet}
-                        <span className="ml-1 text-slate-600">({(cite.relevance_score * 100).toFixed(0)}%)</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Typing indicator */}
+            <AnimatePresence>
+              {isTyping && <TypingIndicator />}
+            </AnimatePresence>
+
+            {/* Scroll anchor */}
+            <div ref={messagesEndRef} className="h-1" />
           </div>
-        ))}
 
-        {loading && (
-          <div className="flex justify-start animate-fade-in">
-            <div className="glass-card rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
-              <Loader2 className="h-4 w-4 text-brand-400 animate-spin" />
-              <span className="text-sm text-slate-400">Thinking...</span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Bar */}
-      <div className="shrink-0 px-6 md:px-8 pb-6 pt-2">
-        <form onSubmit={handleSend} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your papers..."
-            disabled={loading}
-            className="input-field flex-1"
+          {/* Scroll to bottom button */}
+          <ScrollToBottom
+            visible={showScrollBtn}
+            onClick={scrollToBottom}
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || loading}
-            className="p-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-sm hover:shadow-glow-md"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </form>
+        </div>
+      ) : (
+        /* Empty state with suggestions */
+        <ChatEmptyState onSuggestionClick={handleSuggestionClick} />
+      )}
+
+      {/* Input bar */}
+      <div className="px-6 md:px-8 pb-5 pt-2">
+        <ChatInput
+          onSend={sendMessage}
+          onCancel={cancelRequest}
+          isTyping={isTyping}
+        />
       </div>
     </div>
   );

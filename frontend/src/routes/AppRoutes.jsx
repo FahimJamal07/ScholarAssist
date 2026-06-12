@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useContext } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.jsx';
 import Loader from '../components/ui/Loader.jsx';
 
@@ -14,6 +14,10 @@ const LiteratureReview = lazy(() => import('../pages/LiteratureReview.jsx'));
 const Novelty = lazy(() => import('../pages/Novelty.jsx'));
 const Analytics = lazy(() => import('../pages/Analytics.jsx'));
 
+// Auth Pages
+const Login = lazy(() => import('../pages/Login.jsx'));
+const Register = lazy(() => import('../pages/Register.jsx'));
+
 // ---------------------------------------------------------------------------
 // Suspense wrapper — provides a consistent loading fallback for lazy routes
 // ---------------------------------------------------------------------------
@@ -21,7 +25,7 @@ function SuspenseLayout() {
   return (
     <Suspense
       fallback={
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-screen bg-slate-950">
           <Loader text="Loading page..." size="lg" />
         </div>
       }
@@ -32,65 +36,88 @@ function SuspenseLayout() {
 }
 
 // ---------------------------------------------------------------------------
-// ProtectedRoute — redirects unauthenticated users to dashboard (or a future
-// login page). Renders child routes when authenticated.
+// ProtectedRoute — redirects unauthenticated users to login
 // ---------------------------------------------------------------------------
-function ProtectedRoute({ redirectTo = '/dashboard' }) {
+function ProtectedRoute({ redirectTo = '/login' }) {
   const { isAuthenticated, loading } = useContext(AuthContext);
+  const location = useLocation();
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-slate-950">
         <Loader text="Authenticating..." />
       </div>
     );
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to={redirectTo} replace />;
+  // Pass current location in state so we can redirect back after login
+  return isAuthenticated ? <Outlet /> : <Navigate to={redirectTo} state={{ from: location }} replace />;
 }
 
 // ---------------------------------------------------------------------------
-// Route Configuration — single source of truth for all application routes
+// PublicOnlyRoute — redirects authenticated users away from auth pages
+// ---------------------------------------------------------------------------
+function PublicOnlyRoute({ redirectTo = '/dashboard' }) {
+  const { isAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-slate-950">
+        <Loader text="Loading..." />
+      </div>
+    );
+  }
+
+  return !isAuthenticated ? <Outlet /> : <Navigate to={redirectTo} replace />;
+}
+
+// ---------------------------------------------------------------------------
+// Route Configuration
 // ---------------------------------------------------------------------------
 const routeConfig = [
-  // Public routes (accessible without authentication)
-  { path: '/dashboard', element: <Dashboard />, isPublic: true },
-  { path: '/upload', element: <Upload />, isPublic: true },
-  { path: '/chat', element: <Chat />, isPublic: true },
-  { path: '/compare', element: <Compare />, isPublic: true },
-  { path: '/literature-review', element: <LiteratureReview />, isPublic: true },
-  { path: '/novelty', element: <Novelty />, isPublic: true },
-  { path: '/analytics', element: <Analytics />, isPublic: true },
-
-  // Protected routes (uncomment & set isPublic: false when auth is enforced)
-  // { path: '/settings', element: <Settings />, isPublic: false },
+  // Core application routes (now protected)
+  { path: '/dashboard', element: <Dashboard />, isProtected: true },
+  { path: '/upload', element: <Upload />, isProtected: true },
+  { path: '/chat', element: <Chat />, isProtected: true },
+  { path: '/compare', element: <Compare />, isProtected: true },
+  { path: '/literature-review', element: <LiteratureReview />, isProtected: true },
+  { path: '/novelty', element: <Novelty />, isProtected: true },
+  { path: '/analytics', element: <Analytics />, isProtected: true },
+  
+  // Auth routes (public only)
+  { path: '/login', element: <Login />, isPublicOnly: true },
+  { path: '/register', element: <Register />, isPublicOnly: true },
 ];
 
 // ---------------------------------------------------------------------------
-// AppRoutes — centralized router with layout nesting
+// AppRoutes — centralized router
 // ---------------------------------------------------------------------------
 function AppRoutes() {
-  const publicRoutes = routeConfig.filter((r) => r.isPublic);
-  const protectedRoutes = routeConfig.filter((r) => !r.isPublic);
+  const protectedRoutes = routeConfig.filter((r) => r.isProtected);
+  const publicOnlyRoutes = routeConfig.filter((r) => r.isPublicOnly);
 
   return (
     <Routes>
-      {/* Redirect root to dashboard */}
+      {/* Root redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-      {/* All routes wrapped in a Suspense layout for lazy loading */}
+      {/* Lazy loading layout */}
       <Route element={<SuspenseLayout />}>
-        {/* Public routes */}
-        {publicRoutes.map((route) => (
-          <Route key={route.path} path={route.path} element={route.element} />
-        ))}
+        
+        {/* Public Only routes (Login, Register) */}
+        <Route element={<PublicOnlyRoute />}>
+          {publicOnlyRoutes.map((route) => (
+            <Route key={route.path} path={route.path} element={route.element} />
+          ))}
+        </Route>
 
-        {/* Protected routes — nested under auth guard */}
+        {/* Protected routes (Dashboard, etc.) */}
         <Route element={<ProtectedRoute />}>
           {protectedRoutes.map((route) => (
             <Route key={route.path} path={route.path} element={route.element} />
           ))}
         </Route>
+
       </Route>
 
       {/* Catch-all redirect */}

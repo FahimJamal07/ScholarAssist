@@ -1,5 +1,14 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, description="The user's chosen display name.")
+    email: EmailStr = Field(..., description="The user's email address.")
+    password: str = Field(..., min_length=6, description="A secure password (at least 6 characters).")
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="The user's registered email address.")
+    password: str = Field(..., description="The user's password.")
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="The user query for RAG QA.")

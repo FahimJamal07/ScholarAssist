@@ -22,6 +22,7 @@ from backend.api.routes import (
     literature_routes,
     novelty_routes,
     analytics_routes,
+    auth_routes,
 )
 from backend.api.middleware.request_logger import RequestLoggerMiddleware
 from backend.api.middleware.rate_limiter import RateLimiterMiddleware
@@ -114,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(literature_routes.router, prefix=settings.API_V1_STR, tags=["Literature Review"])
     app.include_router(novelty_routes.router, prefix=settings.API_V1_STR, tags=["Novelty Detection"])
     app.include_router(analytics_routes.router, prefix=settings.API_V1_STR, tags=["Analytics"])
+    app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Authentication"])
 
     return app
 

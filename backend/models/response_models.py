@@ -9,3 +9,12 @@ class APIResponse(BaseModel):
 class APIErrorResponse(BaseModel):
     success: bool = False
     error: str
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+
+class TokenResponse(BaseModel):
+    token: str
+    user: UserResponse

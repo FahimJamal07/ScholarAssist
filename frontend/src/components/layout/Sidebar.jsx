@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -18,6 +18,7 @@ import {
   Settings,
   ChevronRight,
 } from 'lucide-react';
+import { AuthContext } from '../../context/AuthContext';
 
 /**
  * Navigation link configuration — single source of truth for sidebar items.
@@ -44,6 +45,7 @@ const navLinks = [
  */
 function Sidebar() {
   const location = useLocation();
+  const { user, logout } = useContext(AuthContext);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -172,21 +174,27 @@ function Sidebar() {
         {/* User Profile & Collapse Toggle */}
         <div className="border-t border-slate-800/60 shrink-0">
           {/* User section */}
-          {isExpanded && (
+          {isExpanded && user && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="px-3 pt-3 pb-2"
             >
-              <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-800/40 transition-colors cursor-pointer group">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-accent-cyan flex items-center justify-center text-xs font-bold text-white shrink-0">
-                  SA
+              <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-800/40 transition-colors group">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-accent-cyan flex items-center justify-center text-xs font-bold text-white shrink-0 uppercase">
+                  {user.username ? user.username.substring(0, 2) : 'SA'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">Researcher</p>
-                  <p className="text-[11px] text-slate-500 truncate">scholar@assist.ai</p>
+                  <p className="text-sm font-medium text-slate-200 truncate">{user.username}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user.email}</p>
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                <button
+                  onClick={logout}
+                  className="p-1.5 rounded-md text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
               </div>
             </motion.div>
           )}
